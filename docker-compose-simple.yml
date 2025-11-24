@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0-alpine
+    container_name: fts-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: file_transfer_station
+      MYSQL_USER: fts_user
+      MYSQL_PASSWORD: fts_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 5
+    networks:
+      - fts-network
+
+  # 应用服务
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
+    container_name: fts-app
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "mysql://fts_user:fts_password@mysql:3306/file_transfer_station"
+      VITE_APP_ID: "test_app_id"
+      OAUTH_SERVER_URL: "https://api.manus.im"
+      VITE_OAUTH_PORTAL_URL: "https://manus.im/login"
+      JWT_SECRET: "your_secret_key_at_least_32_characters_long"
+      BUILT_IN_FORGE_API_URL: "https://api.manus.im"
+      BUILT_IN_FORGE_API_KEY: "test_key"
+      VITE_APP_TITLE: "文件中转站"
+      VITE_APP_LOGO: "/logo.svg"
+      OWNER_NAME: "Admin"
+      OWNER_OPEN_ID: "admin_openid"
+      NODE_ENV: "production"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - fts-network
+
+volumes:
+  mysql_data:
+
+networks:
+  fts-network:
+    driver: bridge

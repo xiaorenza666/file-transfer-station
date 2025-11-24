@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # 生产环境数据库
+  db:
+    image: mysql:8.0
+    container_name: fts-prod-db
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-ChangeMeInProduction}
+      MYSQL_DATABASE: file_transfer_station
+      MYSQL_USER: fts_user
+      MYSQL_PASSWORD: ${DB_PASSWORD:-SecurePassword123!}
+    volumes:
+      - prod_db_data:/var/lib/mysql
+    networks:
+      - fts-prod-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 生产环境应用
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
+    container_name: fts-prod-app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      # 数据库连接
+      DATABASE_URL: "mysql://fts_user:${DB_PASSWORD:-SecurePassword123!}@db:3306/file_transfer_station"
+      
+      # 运行环境
+      NODE_ENV: "production"
+      PORT: 3000
+      
+      # 安全密钥 (生产环境务必修改!)
+      JWT_SECRET: ${JWT_SECRET:-PleaseChangeThisToARandomStringInProduction}
+      
+      # 应用配置
+      VITE_APP_TITLE: "文件中转站"
+      VITE_APP_LOGO: "/logo.svg"
+      
+      # 初始管理员配置 (首次启动时生效)
+      OWNER_NAME: "Admin"
+      OWNER_OPEN_ID: "local:admin@example.com" 
+    
+    volumes:
+      # 持久化上传的文件 (关键!)
+      - ./uploads:/app/uploads
+      # 持久化日志
+      - ./logs:/app/logs
+    networks:
+      - fts-prod-net
+
+volumes:
+  prod_db_data:
+
+networks:
+  fts-prod-net:
+    driver: bridge
