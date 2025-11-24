@@ -85,6 +85,31 @@ bash deploy.sh
 
 > ⚠️ **注意**：为了安全起见，请登录后立即修改密码！
 
+## 🔧 进阶配置
+
+如果你需要更强大的功能，可以修改项目根目录下的 `.env` 文件（如果没有则新建一个）。
+
+### 1. 对接 MySQL 数据库
+默认使用内存数据库（重启后数据丢失）。如果需要持久化数据，请配置 MySQL：
+
+```env
+DATABASE_URL="mysql://用户名:密码@localhost:3306/数据库名"
+```
+
+### 2. 对接 S3 对象存储
+默认文件存储在本地 `uploads/` 目录。如果需要存储到云端（如 AWS S3、阿里云 OSS、MinIO），请添加以下配置：
+
+```env
+# S3 兼容存储配置
+S3_ENDPOINT=https://s3.example.com
+S3_REGION=auto
+S3_BUCKET=your-bucket-name
+S3_ACCESS_KEY_ID=your_access_key
+S3_SECRET_ACCESS_KEY=your_secret_key
+# (可选) 自定义公共访问域名
+# S3_PUBLIC_URL=https://cdn.example.com
+```
+
 ---
 
 ## 🔧 常见问题

@@ -38,6 +38,23 @@ nano .env
 DB_ROOT_PASSWORD=ChangeMe_RootPassword_Complex!
 DB_PASSWORD=ChangeMe_UserPassword_Complex!
 
+# 应用连接数据库地址 (如果使用 Docker Compose 内部网络，host 为 db)
+# 如果对接外部/本地数据库，请修改为实际地址，例如: mysql://user:pass@192.168.1.100:3306/dbname
+DATABASE_URL="mysql://fts_user:${DB_PASSWORD}@db:3306/file_transfer_station"
+
+# ==========================================
+# S3 对象存储配置 (可选)
+# ==========================================
+# 留空则默认使用本地文件存储 (./uploads 目录)
+# 支持 AWS S3, MinIO, 阿里云 OSS, 腾讯云 COS 等
+S3_ENDPOINT=
+S3_REGION=auto
+S3_BUCKET=
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+# (可选) 自定义公共访问域名，用于生成分享链接
+S3_PUBLIC_URL=
+
 # ==========================================
 # 应用安全配置 (务必修改密钥!)
 # ==========================================
