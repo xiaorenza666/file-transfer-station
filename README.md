@@ -3,7 +3,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)
 
-![Project Preview](./project-preview.svg)
+![Project Preview](./project-preview.png)
 
 一个安全、私有、功能强大的自托管文件分享平台。支持文件加密、阅后即焚、有效期设置等功能。
 
