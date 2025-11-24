@@ -45,8 +45,17 @@ echo -e "${YELLOW}[3/5] 配置环境...${NC}"
 if [ ! -f ".env.local" ]; then
     echo -e "${YELLOW}创建 .env.local 文件...${NC}"
     cat > .env.local << 'EOF'
-# 数据库配置（使用SQLite用于简化部署）
-DATABASE_URL="file:./data.db"
+# 数据库配置
+# 默认使用内存数据库（重启后数据丢失）。如果要使用 MySQL，请取消注释并配置：
+# DATABASE_URL="mysql://user:password@localhost:3306/dbname"
+
+# S3 对象存储配置（可选）
+# 默认存储在本地 uploads/ 目录。如果要使用 S3，请取消注释并配置：
+# S3_ENDPOINT=https://s3.example.com
+# S3_REGION=auto
+# S3_BUCKET=your-bucket-name
+# S3_ACCESS_KEY_ID=your_access_key
+# S3_SECRET_ACCESS_KEY=your_secret_key
 
 # OAuth配置（测试用）
 VITE_APP_ID="test_app_id"
@@ -55,10 +64,6 @@ VITE_OAUTH_PORTAL_URL="https://manus.im/login"
 
 # JWT密钥（自动生成）
 JWT_SECRET="your_secret_key_min_32_chars_generated"
-
-# 文件存储（使用本地存储用于简化部署）
-BUILT_IN_FORGE_API_URL="https://api.manus.im"
-BUILT_IN_FORGE_API_KEY="test_key"
 
 # 应用配置
 VITE_APP_TITLE="文件中转站"
@@ -79,8 +84,14 @@ fi
 # 初始化数据库
 echo ""
 echo -e "${YELLOW}[4/5] 初始化数据库...${NC}"
-pnpm db:push
-echo -e "${GREEN}✓ 数据库初始化完成${NC}"
+if grep -q "^DATABASE_URL=mysql" .env.local 2>/dev/null || [ -n "$DATABASE_URL" ]; then
+    echo "检测到 MySQL 配置，正在运行数据库迁移..."
+    pnpm db:push
+    echo -e "${GREEN}✓ 数据库初始化完成${NC}"
+else
+    echo "未检测到 MySQL 配置，将使用内存数据库模式（重启后数据丢失）"
+    echo "如需持久化存储，请在 .env.local 中配置 DATABASE_URL"
+fi
 
 # 启动应用
 echo ""

@@ -53,7 +53,16 @@ if not exist ".env.local" (
     echo 创建 .env.local 文件...
     (
         echo # 数据库配置
-        echo DATABASE_URL="file:./data.db"
+        echo # 默认使用内存数据库（重启后数据丢失）。如果要使用 MySQL，请取消注释并配置：
+        echo # DATABASE_URL="mysql://user:password@localhost:3306/dbname"
+        echo.
+        echo # S3 对象存储配置（可选）
+        echo # 默认存储在本地 uploads/ 目录。如果要使用 S3，请取消注释并配置：
+        echo # S3_ENDPOINT=https://s3.example.com
+        echo # S3_REGION=auto
+        echo # S3_BUCKET=your-bucket-name
+        echo # S3_ACCESS_KEY_ID=your_access_key
+        echo # S3_SECRET_ACCESS_KEY=your_secret_key
         echo.
         echo # OAuth配置
         echo VITE_APP_ID="test_app_id"
@@ -62,10 +71,6 @@ if not exist ".env.local" (
         echo.
         echo # JWT密钥
         echo JWT_SECRET="your_secret_key_min_32_chars_generated"
-        echo.
-        echo # 文件存储
-        echo BUILT_IN_FORGE_API_URL="https://api.manus.im"
-        echo BUILT_IN_FORGE_API_KEY="test_key"
         echo.
         echo # 应用配置
         echo VITE_APP_TITLE="文件中转站"
@@ -86,14 +91,21 @@ if not exist ".env.local" (
 REM 初始化数据库
 echo.
 echo [4/5] 初始化数据库...
-call pnpm db:push
-if errorlevel 1 (
-    echo.
-    echo ❌ 数据库初始化失败
-    pause
-    exit /b 1
+findstr /b "DATABASE_URL=mysql" .env.local >nul
+if %errorlevel% equ 0 (
+    echo 检测到 MySQL 配置，正在运行数据库迁移...
+    call pnpm db:push
+    if errorlevel 1 (
+        echo.
+        echo ❌ 数据库初始化失败
+        pause
+        exit /b 1
+    )
+    echo ✓ 数据库初始化完成
+) else (
+    echo 未检测到 MySQL 配置，将使用内存数据库模式（重启后数据丢失）
+    echo 如需持久化存储，请在 .env.local 中配置 DATABASE_URL
 )
-echo ✓ 数据库初始化完成
 
 REM 启动应用
 echo.

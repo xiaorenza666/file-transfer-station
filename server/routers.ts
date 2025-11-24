@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "./db";
-import { storagePut } from "./storage";
+import { storagePut, storageGet } from "./storage";
 import * as crypto from "crypto";
 import * as bcrypt from "bcryptjs";
 import { sdk } from "./_core/sdk";
@@ -229,28 +229,34 @@ export const appRouter = router({
         await fs.promises.mkdir(finalDir, { recursive: true });
 
         // Merge chunks
-        const writeStream = fs.createWriteStream(finalPath);
-        
-        for (const chunk of chunks) {
-          const chunkPath = path.join(uploadDir, chunk);
-          const data = await fs.promises.readFile(chunkPath);
-          if (!writeStream.write(data)) {
-            await new Promise(resolve => writeStream.once('drain', resolve));
+        // Create a readable stream from chunks and pipe to storagePut
+        const { PassThrough } = await import('stream');
+        const passThrough = new PassThrough();
+
+        // Start processing chunks asynchronously
+        (async () => {
+          for (const chunk of chunks) {
+            const chunkPath = path.join(uploadDir, chunk);
+            const data = await fs.promises.readFile(chunkPath);
+            if (!passThrough.write(data)) {
+              await new Promise(resolve => passThrough.once('drain', resolve));
+            }
           }
-        }
-        
-        writeStream.end();
-        await new Promise((resolve, reject) => {
-          writeStream.on('finish', resolve);
-          writeStream.on('error', reject);
+          passThrough.end();
+        })().catch(err => {
+          logger.error("Error reading chunks", err);
+          passThrough.destroy(err);
         });
+
+        // Upload to storage (Local or S3)
+        const { url: fileUrl } = await storagePut(fileKey, passThrough, session.mimeType || undefined);
 
         // Clean up temp files
         try {
           await fs.promises.rm(uploadDir, { recursive: true, force: true });
           await db.deleteUploadSession(input.uploadId);
         } catch (e) {
-          logger.error("Failed to cleanup temp files", e);
+          logger.error("Failed to cleanup temp files", String(e));
         }
 
         // Parse metadata
@@ -350,7 +356,7 @@ export const appRouter = router({
         let expiresAt: Date | undefined;
         if (input.expiresInSeconds) {
           expiresAt = new Date(Date.now() + input.expiresInSeconds * 1000);
-          logger.info("File upload with expiration", { 
+          logger.info("File upload with expiration", "Upload", { 
             expiresInSeconds: input.expiresInSeconds,
             expiresAt,
             now: new Date()
@@ -406,7 +412,7 @@ export const appRouter = router({
         if (file.expiresAt) {
           const now = new Date();
           const isExpired = now > file.expiresAt;
-          logger.info("Checking file expiration", {
+          logger.info("Checking file expiration", "File", {
             fileId: file.id,
             expiresAt: file.expiresAt,
             now,
@@ -460,6 +466,17 @@ export const appRouter = router({
             };
           }
         }
+
+        // Generate fresh URL if needed (e.g. S3 signed URL)
+        let fileUrl = file.fileUrl;
+        if (!file.burnAfterRead && (!requiresPassword || passwordValid)) {
+          try {
+            const { url } = await storageGet(file.fileKey);
+            fileUrl = url;
+          } catch (e) {
+            logger.warn("Failed to generate fresh URL", "File", e);
+          }
+        }
         
         // Return file info (without password hash)
         return {
@@ -474,7 +491,7 @@ export const appRouter = router({
             burnAfterRead: file.burnAfterRead,
             createdAt: file.createdAt,
             // Allow preview for non-burn-after-read files if password is valid (or not required)
-            fileUrl: (!file.burnAfterRead && (!requiresPassword || passwordValid)) ? file.fileUrl : undefined,
+            fileUrl: (!file.burnAfterRead && (!requiresPassword || passwordValid)) ? fileUrl : undefined,
           },
         };
       }),

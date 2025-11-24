@@ -1,10 +1,9 @@
 import { Request, Response } from "express";
-import path from "path";
-import fs from "fs";
 import * as db from "../db";
 import * as bcrypt from "bcryptjs";
 import { Throttle } from "../utils/throttle";
 import { logger } from "../_core/logger";
+import { storageGetStream, storageStat, storageDelete } from "../storage";
 
 export async function downloadHandler(req: Request, res: Response) {
   try {
@@ -34,18 +33,14 @@ export async function downloadHandler(req: Request, res: Response) {
       }
     }
 
-    // 4. Log download (only if it's a new request, not a partial range resume? 
-    // Actually, logging every range request might spam logs. 
-    // But for audit, we should probably log "access". 
-    // Let's log only if range is 0- or not present, or just log everything for now.)
-    // To avoid spamming DB on resume, maybe we can skip if Range header is present and start > 0?
+    // 4. Log download
     const range = req.headers.range;
     const isResume = range && !range.startsWith("bytes=0-");
     
     if (!isResume) {
       await db.createFileAccessLog({
         fileId: file.id,
-        userId: null, // We don't have user context in this raw handler easily unless we parse cookies
+        userId: null,
         accessType: 'download',
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
@@ -55,16 +50,15 @@ export async function downloadHandler(req: Request, res: Response) {
       await db.updateFileDownloadCount(file.id);
     }
 
-    // 5. Get file path
-    // Assuming local storage structure from storage.ts
-    const filePath = path.join(process.cwd(), "uploads", file.fileKey);
-    
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).send("File not found on disk");
+    // 5. Get file stats
+    let fileSize = 0;
+    try {
+      const stat = await storageStat(file.fileKey);
+      fileSize = stat.size;
+    } catch (e) {
+      logger.error("File not found in storage", "Download", e);
+      return res.status(404).send("File not found on storage");
     }
-
-    const stat = fs.statSync(filePath);
-    const fileSize = stat.size;
 
     // 6. Get Speed Limit
     const config = await db.getSystemConfig("downloadSpeedLimit");
@@ -106,7 +100,9 @@ export async function downloadHandler(req: Request, res: Response) {
     }
 
     const chunksize = end - start + 1;
-    const fileStream = fs.createReadStream(filePath, { start, end });
+    
+    // Get stream from storage (Local or S3)
+    const fileStream = await storageGetStream(file.fileKey, { start, end });
 
     res.writeHead(status, {
       "Content-Range": `bytes ${start}-${end}/${fileSize}`,
@@ -130,7 +126,10 @@ export async function downloadHandler(req: Request, res: Response) {
       
       throttle.on('end', () => {
         if (file.burnAfterRead && end === fileSize - 1) {
-           db.deleteFile(file.id).catch(err => logger.error("Failed to burn file", "Download", err));
+           // Delete from DB and Storage
+           db.deleteFile(file.id).then(() => {
+             return storageDelete(file.fileKey);
+           }).catch(err => logger.error("Failed to burn file", "Download", err));
         }
       });
     } else {
@@ -143,7 +142,10 @@ export async function downloadHandler(req: Request, res: Response) {
       
       fileStream.on('end', () => {
         if (file.burnAfterRead && end === fileSize - 1) {
-           db.deleteFile(file.id).catch(err => logger.error("Failed to burn file", "Download", err));
+           // Delete from DB and Storage
+           db.deleteFile(file.id).then(() => {
+             return storageDelete(file.fileKey);
+           }).catch(err => logger.error("Failed to burn file", "Download", err));
         }
       });
     }

@@ -9,4 +9,14 @@ export const ENV = {
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   // Default LLM model for Forge API, e.g. "claude-sonnet-4.5" or "claude-3.5-sonnet"
   defaultLlmModel: process.env.DEFAULT_LLM_MODEL ?? "",
+  
+  // S3 Configuration
+  s3: {
+    endpoint: process.env.S3_ENDPOINT,
+    region: process.env.S3_REGION || "auto",
+    bucket: process.env.S3_BUCKET,
+    accessKeyId: process.env.S3_ACCESS_KEY_ID,
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+    publicUrl: process.env.S3_PUBLIC_URL, // Optional: for public access if different from endpoint
+  }
 };
