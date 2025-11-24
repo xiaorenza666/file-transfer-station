@@ -1,7 +1,7 @@
 {
   "name": "file-transfer-station",
   "version": "1.0.0",
-  "description": "A secure, private, and feature-rich self-hosted file sharing platform with encryption, burn-after-read, and expiration controls.",
+  "description": "A secure, private, and feature-rich self-hosted file sharing platform. 一个安全、私有、功能强大的自托管文件分享平台。",
   "type": "module",
   "license": "MIT",
   "scripts": {
